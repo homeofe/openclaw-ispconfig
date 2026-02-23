@@ -1,3 +1,8 @@
+---
+name: openclaw-ispconfig
+description: "Manage ISPConfig servers: automated site provisioning, domains, mailboxes, DNS, databases, SSL, backups, and more."
+---
+
 # @elvatis_com/openclaw-ispconfig
 
 OpenClaw plugin to manage ISPConfig via the Remote JSON API.
