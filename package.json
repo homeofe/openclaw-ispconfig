@@ -1,5 +1,5 @@
 {
-  "name": "@elvatis/openclaw-ispconfig",
+  "name": "@elvatis_com/openclaw-ispconfig",
   "version": "0.1.0",
   "description": "OpenClaw plugin for ISPConfig server management — domains, mailboxes, databases, DNS, websites",
   "main": "dist/index.js",
