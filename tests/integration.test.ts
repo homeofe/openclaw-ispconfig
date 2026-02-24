@@ -41,7 +41,7 @@ describeLive("ISPConfig live integration", () => {
     expect(details.server).toBeDefined();
   });
 
-  test("list sites includes expected domains", async () => {
+  test("list sites returns domains", async () => {
     const tools = buildToolset({
       apiUrl: apiUrl as string,
       username: username as string,
@@ -52,15 +52,14 @@ describeLive("ISPConfig live integration", () => {
     const result = await siteListTool!.run({}) as Array<Record<string, unknown>>;
     const domains = result.map((s) => String(s.domain));
 
-    expect(domains).toContain("example.invalid");
-    expect(domains).toContain("example.invalid");
-    expect(domains).toContain("example.invalid");
+    // Do not assert private domains in public repos.
+    expect(domains.length).toBeGreaterThan(0);
   });
 
-  test("client details for Elvatis id=1", async () => {
+  test("client details for client_id=1 has a name", async () => {
     const details = await client.call<Record<string, unknown>>("client_get", { client_id: 1 });
     const name = String(details.company_name ?? details.contact_name ?? "").toLowerCase();
-    expect(name).toContain("elvatis");
+    expect(name.length).toBeGreaterThan(0);
   });
 
   test("ssl status check", async () => {
@@ -75,9 +74,11 @@ describeLive("ISPConfig live integration", () => {
     const result = await sslTool!.run({});
     const out = result as { total: number; status: Array<Record<string, unknown>> };
     expect(out.total).toBeGreaterThan(0);
-    const elvatis = out.status.find((x) => String(x.domain) === "example.invalid");
-    expect(elvatis).toBeDefined();
-    expect(["y", "Y", true]).toContain(elvatis?.ssl as never);
+    // Only assert structure, not private domain names.
+    expect(Array.isArray(out.status)).toBe(true);
+    if (out.status.length > 0) {
+      expect(Object.prototype.hasOwnProperty.call(out.status[0], "ssl")).toBe(true);
+    }
   });
 });
 
