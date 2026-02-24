@@ -19,7 +19,7 @@
 - 31 tools (`src/tools.ts`): (Verified)
 - Plugin entry + registration (`src/index.ts`): (Verified)
 - README with setup + tool docs: (Verified)
-- Live integration tests against example.invalid: (Verified)
+- Live integration tests against a private ISPConfig instance: (Verified)
 
 ## Notes
 
