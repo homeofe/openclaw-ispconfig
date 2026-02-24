@@ -1,6 +1,6 @@
 {
   "name": "ISPConfig",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Manage ISPConfig servers: automated site provisioning, domains, mailboxes, DNS, databases, SSL, backups, and more.",
   "config": {
     "apiUrl": {
