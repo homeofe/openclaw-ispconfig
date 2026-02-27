@@ -18,4 +18,4 @@
 - [ ] Bump package version
 - [ ] Create release tag
 - [ ] Publish npm package
-- [ ] Publish plugin on clawhub
+- [x] Publish plugin on clawhub

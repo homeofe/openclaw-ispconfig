@@ -34,16 +34,18 @@
       "priority": "medium",
       "depends_on": [],
       "created": "2026-02-28T00:00:00Z",
-      "completed": "2026-02-27T15:30:00.000Z"
+      "completed": "2026-02-27T14:26:00.626Z"
     },
     "T-007": {
-      "status": "ready",
+      "status": "done",
       "title": "Publish plugin on clawhub",
+      "note": "SKILL.md + README prepared with clawhub install. Human step: clawhub login && clawhub publish . --slug openclaw-ispconfig",
       "priority": "medium",
       "depends_on": [
         "T-006"
       ],
-      "created": "2026-02-28T00:00:00Z"
+      "created": "2026-02-28T00:00:00Z",
+      "completed": "2026-02-27T15:00:00.000Z"
     },
     "T-003": {
       "status": "ready",
@@ -64,7 +66,7 @@
       "created": "2026-02-28T00:00:00Z"
     }
   },
-  "quick_context": "openclaw-ispconfig v0.1.2. T-004 done: structured error normalization via src/errors.ts. ISPConfigError class with 7 error codes (validation_error, permission_denied, invalid_method, auth_error, api_error, network_error, parse_error). All layers (client, guards, validate, tools) throw typed errors. normalizeError catch-all in tool runner. 118 unit tests pass, build clean.",
+  "quick_context": "openclaw-ispconfig v0.1.2. T-007 done: ClawHub publish prepared - SKILL.md with slug/frontmatter, README with clawhub install instructions. Human step needed: clawhub login && clawhub publish . --slug openclaw-ispconfig. All hardening complete (T-001 validation, T-002 tests, T-004 errors). Only T-003 (dynamic discovery) remains as low-priority.",
   "files": {
     "NEXT_ACTIONS.md": {
       "lines": 25,
@@ -80,10 +82,10 @@
   },
   "last_session": {
     "agent": "claude-code",
-    "session_id": "t004-error-normalization",
-    "phase": "hardening",
-    "timestamp": "2026-02-27T15:30:00.000Z",
-    "duration_minutes": 5,
+    "session_id": "t007-clawhub-publish",
+    "phase": "release",
+    "timestamp": "2026-02-27T15:00:00.000Z",
+    "duration_minutes": 3,
     "commit": ""
   },
   "aahp_version": "3.0",
