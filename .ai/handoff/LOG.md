@@ -1,4 +1,4 @@
-# openclaw-ispconfig - Log
+﻿# openclaw-ispconfig - Log
 
 ## 2026-02-23 - Project Initialization (Akido)
 
@@ -6,7 +6,7 @@
 - Initialized package.json, tsconfig.json, openclaw.plugin.json
 - Defined 15 agent tools mapping to ISPConfig Remote JSON API
 - Config schema: apiUrl, username, password, readOnly, allowedOperations, verifySsl
-- Git initialized, linked to github.com/homeofe/openclaw-ispconfig
+- Git initialized, linked to github.com/elvatis/openclaw-ispconfig
 
 ## 2026-02-23 - Full implementation + live validation (Subagent)
 

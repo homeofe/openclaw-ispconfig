@@ -1,4 +1,4 @@
-# openclaw-ispconfig - Status
+﻿# openclaw-ispconfig - Status
 
 > Last updated: 2026-02-23
 > Phase: P4 complete (implementation + live tests)
@@ -6,7 +6,7 @@
 ## Project Overview
 
 **Package:** `@elvatis/openclaw-ispconfig`
-**Repo:** https://github.com/homeofe/openclaw-ispconfig
+**Repo:** https://github.com/elvatis/openclaw-ispconfig
 **Purpose:** OpenClaw tools for ISPConfig JSON API (sites, DNS, mail, DB, clients, cron, provisioning).
 
 ## Build Health
