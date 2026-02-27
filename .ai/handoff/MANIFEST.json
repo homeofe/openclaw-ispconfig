@@ -1,0 +1,86 @@
+{
+  "next_task_id": 8,
+  "tasks": {
+    "T-006": {
+      "depends_on": [
+        "T-005"
+      ],
+      "status": "ready",
+      "title": "Publish npm package",
+      "note": "Manual human step - agent prepares, human executes",
+      "created": "2026-02-28T00:00:00Z",
+      "priority": "high"
+    },
+    "T-002": {
+      "status": "ready",
+      "title": "Add mock-based unit tests for write/provision flows",
+      "priority": "medium",
+      "depends_on": [],
+      "created": "2026-02-28T00:00:00Z"
+    },
+    "T-001": {
+      "status": "ready",
+      "title": "Add schema-level runtime validation per tool params",
+      "priority": "medium",
+      "depends_on": [],
+      "created": "2026-02-28T00:00:00Z"
+    },
+    "T-004": {
+      "status": "ready",
+      "title": "Add richer error normalization (invalid_method, permission errors, validation errors)",
+      "priority": "medium",
+      "depends_on": [],
+      "created": "2026-02-28T00:00:00Z"
+    },
+    "T-007": {
+      "status": "ready",
+      "title": "Publish plugin on clawhub",
+      "priority": "medium",
+      "depends_on": [
+        "T-006"
+      ],
+      "created": "2026-02-28T00:00:00Z"
+    },
+    "T-003": {
+      "status": "ready",
+      "title": "Improve isp_methods_list with dynamic discovery if available",
+      "priority": "low",
+      "depends_on": [],
+      "created": "2026-02-28T00:00:00Z"
+    },
+    "T-005": {
+      "status": "ready",
+      "title": "Bump package version and create release tag",
+      "priority": "high",
+      "depends_on": [
+        "T-001",
+        "T-002"
+      ],
+      "created": "2026-02-28T00:00:00Z"
+    }
+  },
+  "quick_context": "openclaw-ispconfig ISPConfig management plugin complete with live read-only integration tests. Hardening and release tasks remaining.",
+  "files": {
+    "NEXT_ACTIONS.md": {
+      "lines": 25,
+      "summary": "Optional hardening (4 tasks) + release pipeline (3 tasks: version, npm publish, clawhub).",
+      "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "updated": "2026-02-28T00:00:00Z"
+    }
+  },
+  "token_budget": {
+    "full_read": 1200,
+    "manifest_only": 100,
+    "manifest_plus_core": 400
+  },
+  "last_session": {
+    "agent": "human",
+    "session_id": "implementation-done",
+    "phase": "maintenance",
+    "timestamp": "2026-02-28T00:00:00Z",
+    "duration_minutes": 0,
+    "commit": ""
+  },
+  "aahp_version": "3.0",
+  "project": "openclaw-ispconfig"
+}
