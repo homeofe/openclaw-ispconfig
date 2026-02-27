@@ -5,9 +5,9 @@
       "depends_on": [
         "T-005"
       ],
-      "status": "ready",
+      "status": "prepared",
       "title": "Publish npm package",
-      "note": "Manual human step - agent prepares, human executes",
+      "note": "Agent verified: build passes, pack dry-run OK (24 files, 15.1 kB), repo URL fixed. Human must run: npm adduser && npm publish --access public",
       "created": "2026-02-28T00:00:00Z",
       "priority": "high"
     },
@@ -49,8 +49,9 @@
       "created": "2026-02-28T00:00:00Z"
     },
     "T-005": {
-      "status": "ready",
+      "status": "done",
       "title": "Bump package version and create release tag",
+      "note": "v0.1.2 released, tag v0.1.2 exists",
       "priority": "high",
       "depends_on": [
         "T-001",
@@ -59,7 +60,7 @@
       "created": "2026-02-28T00:00:00Z"
     }
   },
-  "quick_context": "openclaw-ispconfig ISPConfig management plugin complete with live read-only integration tests. Hardening and release tasks remaining.",
+  "quick_context": "openclaw-ispconfig v0.1.2 ready for npm publish. Build verified, package prepared (24 files, 15.1 kB). Human must authenticate with npm and run publish.",
   "files": {
     "NEXT_ACTIONS.md": {
       "lines": 25,
@@ -74,11 +75,11 @@
     "manifest_plus_core": 400
   },
   "last_session": {
-    "agent": "human",
-    "session_id": "implementation-done",
-    "phase": "maintenance",
-    "timestamp": "2026-02-28T00:00:00Z",
-    "duration_minutes": 0,
+    "agent": "claude-opus-4-6",
+    "session_id": "t006-publish-prep",
+    "phase": "release",
+    "timestamp": "2026-02-27T13:12:00Z",
+    "duration_minutes": 5,
     "commit": ""
   },
   "aahp_version": "3.0",
