@@ -26,7 +26,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/homeofe/openclaw-ispconfig.git"
+    "url": "git+https://github.com/elvatis/openclaw-ispconfig.git"
   },
   "dependencies": {},
   "devDependencies": {
