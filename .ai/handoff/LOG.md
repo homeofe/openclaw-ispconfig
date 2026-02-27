@@ -1,6 +1,6 @@
-# openclaw-ispconfig — Log
+# openclaw-ispconfig - Log
 
-## 2026-02-23 — Project Initialization (Akido)
+## 2026-02-23 - Project Initialization (Akido)
 
 - Created project directory + AAHP structure
 - Initialized package.json, tsconfig.json, openclaw.plugin.json
@@ -8,7 +8,7 @@
 - Config schema: apiUrl, username, password, readOnly, allowedOperations, verifySsl
 - Git initialized, linked to github.com/homeofe/openclaw-ispconfig
 
-## 2026-02-23 — Full implementation + live validation (Subagent)
+## 2026-02-23 - Full implementation + live validation (Subagent)
 
 - Implemented `src/types.ts` with ISPConfig domain types and tool/plugin interfaces.
 - Implemented `src/client.ts`:

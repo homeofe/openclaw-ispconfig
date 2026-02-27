@@ -1,4 +1,4 @@
-# openclaw-ispconfig — Next Actions
+# openclaw-ispconfig - Next Actions
 
 ## Immediate
 

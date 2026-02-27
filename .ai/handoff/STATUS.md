@@ -1,4 +1,4 @@
-# openclaw-ispconfig — Status
+# openclaw-ispconfig - Status
 
 > Last updated: 2026-02-23
 > Phase: P4 complete (implementation + live tests)
