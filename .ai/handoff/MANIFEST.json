@@ -52,7 +52,7 @@
       "priority": "low",
       "depends_on": [],
       "created": "2026-02-28T00:00:00Z",
-      "completed": "2026-02-27T15:10:00.000Z"
+      "completed": "2026-02-27T15:05:09.508Z"
     },
     "T-005": {
       "status": "done",
@@ -84,8 +84,8 @@
     "agent": "claude-code",
     "session_id": "t003-dynamic-discovery",
     "phase": "hardening",
-    "timestamp": "2026-02-27T15:10:00.000Z",
-    "duration_minutes": 5,
+    "timestamp": "2026-02-27T15:05:09.508Z",
+    "duration_minutes": 2,
     "commit": ""
   },
   "aahp_version": "3.0",
