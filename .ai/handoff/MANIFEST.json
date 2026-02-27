@@ -15,18 +15,18 @@
     "T-002": {
       "status": "done",
       "title": "Add mock-based unit tests for write/provision flows",
-      "note": "46 tests in tests/unit.test.ts: all 15 write tools, provision flow (full/no-mail-db/no-ip/missing-params), guard enforcement (readOnly on all 15 write tools, allowedOperations whitelist), DNS type dispatch (add+delete for 5 types + unsupported), logout-on-error",
       "priority": "medium",
       "depends_on": [],
       "created": "2026-02-28T00:00:00Z",
-      "completed": "2026-02-27T15:00:00Z"
+      "completed": "2026-02-27T13:24:24.719Z"
     },
     "T-001": {
-      "status": "ready",
+      "status": "done",
       "title": "Add schema-level runtime validation per tool params",
       "priority": "medium",
       "depends_on": [],
-      "created": "2026-02-28T00:00:00Z"
+      "created": "2026-02-28T00:00:00Z",
+      "completed": "2026-02-27T14:00:00.000Z"
     },
     "T-004": {
       "status": "ready",
@@ -63,7 +63,7 @@
       "created": "2026-02-28T00:00:00Z"
     }
   },
-  "quick_context": "openclaw-ispconfig v0.1.2. T-002 done: 46 mock-based unit tests added for all write/provision tools, guard enforcement, and DNS dispatch. Build and type-check pass.",
+  "quick_context": "openclaw-ispconfig v0.1.2. T-001 done: schema-level runtime validation via src/validate.ts with declarative schemas for 7 tools (provision, client_get, site_get, dns_record_list/add/delete, quota_check). Validation runs before client creation (fail-fast). 70 unit tests pass, build clean.",
   "files": {
     "NEXT_ACTIONS.md": {
       "lines": 25,
@@ -79,9 +79,9 @@
   },
   "last_session": {
     "agent": "claude-code",
-    "session_id": "t002-unit-tests",
+    "session_id": "t001-schema-validation",
     "phase": "hardening",
-    "timestamp": "2026-02-27T15:00:00Z",
+    "timestamp": "2026-02-27T14:00:00.000Z",
     "duration_minutes": 5,
     "commit": ""
   },

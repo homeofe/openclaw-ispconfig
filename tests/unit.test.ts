@@ -1,6 +1,7 @@
 import { createTools } from "../src/tools";
 import { ISPConfigClient } from "../src/client";
 import { ToolContext, ToolDefinition, JsonMap } from "../src/types";
+import { validateParams, TOOL_SCHEMAS } from "../src/validate";
 
 // ---------------------------------------------------------------------------
 // Mock ISPConfigClient so no real HTTP calls are made
@@ -123,10 +124,10 @@ describe("write tools (mock-based)", () => {
     expect(mockCall).toHaveBeenCalledWith(expectedMethod, params);
   });
 
-  test("isp_dns_record_add rejects unsupported type", async () => {
+  test("isp_dns_record_add rejects unsupported type via schema validation", async () => {
     const tool = findTool(tools, "isp_dns_record_add");
 
-    await expect(tool.run({ type: "SRV" }, ctx())).rejects.toThrow("Unsupported DNS record type: SRV");
+    await expect(tool.run({ type: "SRV" }, ctx())).rejects.toThrow("must be one of [A, AAAA, MX, TXT, CNAME]");
   });
 
   // ---- isp_dns_record_delete - type dispatch ----
@@ -427,15 +428,15 @@ describe("isp_provision_site (mock-based)", () => {
     expect(mockCall).toHaveBeenCalledTimes(6);
   });
 
-  test("provision rejects missing required fields", async () => {
+  test("provision rejects missing required fields via schema validation", async () => {
     const tool = findTool(tools, "isp_provision_site");
 
     await expect(tool.run({ domain: "x.test" }, ctx())).rejects.toThrow(
-      "domain, clientName and clientEmail are required",
+      "Validation failed for isp_provision_site",
     );
 
     await expect(tool.run({ clientName: "Foo", clientEmail: "a@b.c" }, ctx())).rejects.toThrow(
-      "domain, clientName and clientEmail are required",
+      "Missing required parameter: domain",
     );
   });
 });
@@ -452,29 +453,30 @@ describe("guard enforcement", () => {
     tools = createTools();
   });
 
-  const WRITE_TOOL_NAMES = [
-    "isp_client_add",
-    "isp_site_add",
-    "isp_domain_add",
-    "isp_dns_zone_add",
-    "isp_dns_record_add",
-    "isp_dns_record_delete",
-    "isp_mail_domain_add",
-    "isp_mail_user_add",
-    "isp_mail_user_delete",
-    "isp_db_add",
-    "isp_db_user_add",
-    "isp_shell_user_add",
-    "isp_ftp_user_add",
-    "isp_cron_add",
-    "isp_provision_site",
+  // Valid params per tool so schema validation passes and guard check is reached
+  const WRITE_TOOLS_WITH_PARAMS: Array<[string, JsonMap]> = [
+    ["isp_client_add", {}],
+    ["isp_site_add", {}],
+    ["isp_domain_add", {}],
+    ["isp_dns_zone_add", {}],
+    ["isp_dns_record_add", { type: "A" }],
+    ["isp_dns_record_delete", { type: "A" }],
+    ["isp_mail_domain_add", {}],
+    ["isp_mail_user_add", {}],
+    ["isp_mail_user_delete", {}],
+    ["isp_db_add", {}],
+    ["isp_db_user_add", {}],
+    ["isp_shell_user_add", {}],
+    ["isp_ftp_user_add", {}],
+    ["isp_cron_add", {}],
+    ["isp_provision_site", { domain: "x.test", clientName: "X", clientEmail: "x@x.test" }],
   ];
 
-  test.each(WRITE_TOOL_NAMES)("readOnly blocks %s", async (toolName) => {
+  test.each(WRITE_TOOLS_WITH_PARAMS)("readOnly blocks %s", async (toolName, params) => {
     const tool = findTool(tools, toolName);
     const readOnlyCtx = ctx({ readOnly: true } as never);
 
-    await expect(tool.run({}, readOnlyCtx)).rejects.toThrow("readOnly=true");
+    await expect(tool.run(params, readOnlyCtx)).rejects.toThrow("readOnly=true");
     // Client.call should never be invoked
     expect(mockCall).not.toHaveBeenCalled();
   });
@@ -507,5 +509,199 @@ describe("guard enforcement", () => {
 
     await expect(tool.run({}, readOnlyCtx)).resolves.toBeDefined();
     expect(mockCall).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schema-level runtime validation (validateParams)
+// ---------------------------------------------------------------------------
+
+describe("validateParams (unit)", () => {
+  test("passes for tools without schemas", () => {
+    expect(() => validateParams("isp_methods_list", {})).not.toThrow();
+    expect(() => validateParams("isp_client_list", { random: "stuff" })).not.toThrow();
+    expect(() => validateParams("unknown_tool", {})).not.toThrow();
+  });
+
+  // ---- isp_provision_site ----
+  test("isp_provision_site rejects missing required fields", () => {
+    expect(() => validateParams("isp_provision_site", {})).toThrow("Validation failed");
+    expect(() => validateParams("isp_provision_site", {})).toThrow("Missing required parameter: domain");
+    expect(() => validateParams("isp_provision_site", {})).toThrow("Missing required parameter: clientName");
+    expect(() => validateParams("isp_provision_site", {})).toThrow("Missing required parameter: clientEmail");
+  });
+
+  test("isp_provision_site rejects empty strings for required fields", () => {
+    expect(() => validateParams("isp_provision_site", {
+      domain: "  ", clientName: "Test", clientEmail: "a@b.c",
+    })).toThrow("must not be empty");
+  });
+
+  test("isp_provision_site accepts valid params", () => {
+    expect(() => validateParams("isp_provision_site", {
+      domain: "acme.test", clientName: "Acme", clientEmail: "a@acme.test",
+    })).not.toThrow();
+  });
+
+  test("isp_provision_site rejects non-numeric serverId", () => {
+    expect(() => validateParams("isp_provision_site", {
+      domain: "x.test", clientName: "X", clientEmail: "x@x.test",
+      serverId: "not-a-number",
+    })).toThrow("must be a valid number");
+  });
+
+  test("isp_provision_site accepts numeric string serverId", () => {
+    expect(() => validateParams("isp_provision_site", {
+      domain: "x.test", clientName: "X", clientEmail: "x@x.test",
+      serverId: "5",
+    })).not.toThrow();
+  });
+
+  // ---- anyOf groups ----
+  test("isp_client_get requires client_id or clientId", () => {
+    expect(() => validateParams("isp_client_get", {})).toThrow("One of [client_id, clientId] is required");
+    expect(() => validateParams("isp_client_get", { client_id: 1 })).not.toThrow();
+    expect(() => validateParams("isp_client_get", { clientId: 2 })).not.toThrow();
+  });
+
+  test("isp_site_get requires primary_id, domain_id, or site_id", () => {
+    expect(() => validateParams("isp_site_get", {})).toThrow("One of [primary_id, domain_id, site_id] is required");
+    expect(() => validateParams("isp_site_get", { primary_id: 1 })).not.toThrow();
+    expect(() => validateParams("isp_site_get", { domain_id: 2 })).not.toThrow();
+    expect(() => validateParams("isp_site_get", { site_id: 3 })).not.toThrow();
+  });
+
+  test("isp_dns_record_list requires zone_id or zoneId", () => {
+    expect(() => validateParams("isp_dns_record_list", {})).toThrow("One of [zone_id, zoneId] is required");
+    expect(() => validateParams("isp_dns_record_list", { zone_id: 10 })).not.toThrow();
+    expect(() => validateParams("isp_dns_record_list", { zoneId: 10 })).not.toThrow();
+  });
+
+  test("isp_quota_check requires client_id or clientId", () => {
+    expect(() => validateParams("isp_quota_check", {})).toThrow("One of [client_id, clientId] is required");
+    expect(() => validateParams("isp_quota_check", { client_id: 1 })).not.toThrow();
+  });
+
+  // ---- DNS type enum ----
+  test("isp_dns_record_add rejects missing type", () => {
+    expect(() => validateParams("isp_dns_record_add", {})).toThrow("Missing required parameter: type");
+  });
+
+  test("isp_dns_record_add rejects invalid type", () => {
+    expect(() => validateParams("isp_dns_record_add", { type: "SRV" })).toThrow("must be one of");
+  });
+
+  test("isp_dns_record_add accepts valid types case-insensitively", () => {
+    for (const t of ["A", "a", "AAAA", "aaaa", "MX", "mx", "TXT", "txt", "CNAME", "cname"]) {
+      expect(() => validateParams("isp_dns_record_add", { type: t })).not.toThrow();
+    }
+  });
+
+  test("isp_dns_record_delete validates type the same way", () => {
+    expect(() => validateParams("isp_dns_record_delete", {})).toThrow("Missing required parameter: type");
+    expect(() => validateParams("isp_dns_record_delete", { type: "INVALID" })).toThrow("must be one of");
+    expect(() => validateParams("isp_dns_record_delete", { type: "A" })).not.toThrow();
+  });
+
+  // ---- null/undefined handling ----
+  test("null values count as missing", () => {
+    expect(() => validateParams("isp_client_get", { client_id: null })).toThrow("is required");
+    expect(() => validateParams("isp_provision_site", {
+      domain: null, clientName: "X", clientEmail: "x@x.test",
+    })).toThrow("Missing required parameter: domain");
+  });
+
+  // ---- multiple errors ----
+  test("collects multiple errors in one message", () => {
+    try {
+      validateParams("isp_provision_site", {});
+      fail("should have thrown");
+    } catch (e) {
+      const msg = (e as Error).message;
+      expect(msg).toContain("domain");
+      expect(msg).toContain("clientName");
+      expect(msg).toContain("clientEmail");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Validation integrated into tool execution
+// ---------------------------------------------------------------------------
+
+describe("validation prevents API calls", () => {
+  let tools: ToolDefinition[];
+
+  beforeEach(() => {
+    resetMocks();
+    tools = createTools();
+  });
+
+  test("isp_client_get rejects without id before any API call", async () => {
+    const tool = findTool(tools, "isp_client_get");
+
+    await expect(tool.run({}, ctx())).rejects.toThrow("Validation failed");
+    expect(mockCall).not.toHaveBeenCalled();
+    expect(mockLogout).not.toHaveBeenCalled();
+  });
+
+  test("isp_site_get rejects without id before any API call", async () => {
+    const tool = findTool(tools, "isp_site_get");
+
+    await expect(tool.run({}, ctx())).rejects.toThrow("Validation failed");
+    expect(mockCall).not.toHaveBeenCalled();
+  });
+
+  test("isp_dns_record_add rejects invalid type before any API call", async () => {
+    const tool = findTool(tools, "isp_dns_record_add");
+
+    await expect(tool.run({ type: "BOGUS" }, ctx())).rejects.toThrow("must be one of");
+    expect(mockCall).not.toHaveBeenCalled();
+  });
+
+  test("isp_dns_record_list rejects missing zone_id before any API call", async () => {
+    const tool = findTool(tools, "isp_dns_record_list");
+
+    await expect(tool.run({}, ctx())).rejects.toThrow("Validation failed");
+    expect(mockCall).not.toHaveBeenCalled();
+  });
+
+  test("isp_quota_check rejects missing client_id before any API call", async () => {
+    const tool = findTool(tools, "isp_quota_check");
+
+    await expect(tool.run({}, ctx())).rejects.toThrow("Validation failed");
+    expect(mockCall).not.toHaveBeenCalled();
+  });
+
+  test("isp_provision_site rejects empty params before any API call", async () => {
+    const tool = findTool(tools, "isp_provision_site");
+
+    await expect(tool.run({}, ctx())).rejects.toThrow("Validation failed");
+    expect(mockCall).not.toHaveBeenCalled();
+  });
+
+  test("tools without schemas still work normally", async () => {
+    mockCall.mockResolvedValueOnce(42);
+    const tool = findTool(tools, "isp_client_add");
+
+    const result = await tool.run({ company_name: "Test" }, ctx());
+
+    expect(result).toBe(42);
+    expect(mockCall).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TOOL_SCHEMAS coverage check
+// ---------------------------------------------------------------------------
+
+describe("TOOL_SCHEMAS completeness", () => {
+  test("all schema tool names correspond to real tools", () => {
+    const tools = createTools();
+    const toolNames = new Set(tools.map((t) => t.name));
+
+    for (const schemaName of Object.keys(TOOL_SCHEMAS)) {
+      expect(toolNames.has(schemaName)).toBe(true);
+    }
   });
 });

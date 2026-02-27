@@ -1,6 +1,7 @@
 import { ISPConfigClient } from "./client";
 import { assertToolAllowed } from "./guards";
 import { JsonMap, ToolContext, ToolDefinition } from "./types";
+import { validateParams } from "./validate";
 
 const KNOWN_METHODS = [
   "server_get_all", "server_get", "client_get_all", "client_get", "client_add", "sites_web_domain_get",
@@ -66,7 +67,7 @@ async function fetchSites(client: ISPConfigClient): Promise<JsonMap[]> {
 }
 
 export function createTools(): ToolDefinition[] {
-  return [
+  const raw: ToolDefinition[] = [
     {
       name: "isp_methods_list",
       description: "Probe known ISPConfig API methods and report availability",
@@ -382,4 +383,12 @@ export function createTools(): ToolDefinition[] {
       run: async (params, context) => withClient(context, "isp_cron_add", (client) => client.call("sites_cron_add", params)),
     },
   ];
+
+  return raw.map((tool) => ({
+    ...tool,
+    run: async (params: JsonMap, context: ToolContext) => {
+      validateParams(tool.name, params);
+      return tool.run(params, context);
+    },
+  }));
 }
