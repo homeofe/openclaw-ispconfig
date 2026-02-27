@@ -71,8 +71,30 @@ export function createTools(): ToolDefinition[] {
   const raw: ToolDefinition[] = [
     {
       name: "isp_methods_list",
-      description: "Probe known ISPConfig API methods and report availability",
+      description: "Discover available ISPConfig API methods (dynamic via get_function_list, falls back to probing known methods)",
       run: async (_params, context) => withClient(context, "isp_methods_list", async (client) => {
+        // Try dynamic discovery first (ISPConfig 3.2+)
+        try {
+          const functions = await client.call<string[]>("get_function_list", {});
+          if (Array.isArray(functions) && functions.length > 0) {
+            const dynamicSet = new Set(functions);
+            const knownAvailable = KNOWN_METHODS.filter((m) => dynamicSet.has(m));
+            const knownUnavailable = KNOWN_METHODS.filter((m) => !dynamicSet.has(m));
+            const extra = functions.filter((m) => !KNOWN_METHODS.includes(m));
+            return {
+              discovery: "dynamic",
+              available: knownAvailable,
+              unavailable: knownUnavailable.map((m) => ({ method: m, reason: "not in get_function_list" })),
+              extra,
+              totalServer: functions.length,
+              totalKnown: KNOWN_METHODS.length,
+            };
+          }
+        } catch {
+          // get_function_list not available - fall back to probing
+        }
+
+        // Fallback: probe each known method individually
         const available: string[] = [];
         const unavailable: Array<{ method: string; reason: string }> = [];
 
@@ -90,7 +112,7 @@ export function createTools(): ToolDefinition[] {
           }
         }
 
-        return { available, unavailable, totalProbed: KNOWN_METHODS.length };
+        return { discovery: "probe", available, unavailable, extra: [], totalServer: 0, totalKnown: KNOWN_METHODS.length };
       }),
     },
     {

@@ -254,6 +254,105 @@ describe("write tools (mock-based)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// isp_methods_list dynamic discovery
+// ---------------------------------------------------------------------------
+
+describe("isp_methods_list (mock-based)", () => {
+  let tools: ToolDefinition[];
+
+  beforeEach(() => {
+    resetMocks();
+    tools = createTools();
+  });
+
+  test("uses dynamic discovery when get_function_list succeeds", async () => {
+    const serverFunctions = [
+      "server_get_all", "server_get", "client_get_all", "client_get", "client_add",
+      "sites_web_domain_get", "sites_web_domain_add", "dns_zone_get_by_user",
+      "extra_method_one", "extra_method_two",
+    ];
+    mockCall.mockResolvedValueOnce(serverFunctions);
+
+    const tool = findTool(tools, "isp_methods_list");
+    const result = await tool.run({}, ctx()) as JsonMap;
+
+    expect(result.discovery).toBe("dynamic");
+    expect(mockCall).toHaveBeenCalledWith("get_function_list", {});
+    expect(mockCall).toHaveBeenCalledTimes(1);
+
+    const available = result.available as string[];
+    expect(available).toContain("server_get_all");
+    expect(available).toContain("client_add");
+
+    const unavailable = result.unavailable as Array<{ method: string; reason: string }>;
+    expect(unavailable.length).toBeGreaterThan(0);
+    expect(unavailable[0].reason).toBe("not in get_function_list");
+
+    const extra = result.extra as string[];
+    expect(extra).toContain("extra_method_one");
+    expect(extra).toContain("extra_method_two");
+
+    expect(result.totalServer).toBe(serverFunctions.length);
+  });
+
+  test("falls back to probe when get_function_list throws", async () => {
+    // First call: get_function_list fails
+    mockCall.mockRejectedValueOnce(new Error("ISPConfig API error: invalid function name"));
+    // Subsequent calls: probing each known method
+    mockCall.mockResolvedValue(undefined);
+
+    const tool = findTool(tools, "isp_methods_list");
+    const result = await tool.run({}, ctx()) as JsonMap;
+
+    expect(result.discovery).toBe("probe");
+    expect(mockCall.mock.calls[0][0]).toBe("get_function_list");
+    // All known methods should have been probed after the failed discovery
+    expect(mockCall.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  test("falls back to probe when get_function_list returns empty array", async () => {
+    mockCall.mockResolvedValueOnce([]);
+    // Subsequent probing calls
+    mockCall.mockResolvedValue(undefined);
+
+    const tool = findTool(tools, "isp_methods_list");
+    const result = await tool.run({}, ctx()) as JsonMap;
+
+    expect(result.discovery).toBe("probe");
+  });
+
+  test("falls back to probe when get_function_list returns non-array", async () => {
+    mockCall.mockResolvedValueOnce("not-an-array");
+    // Subsequent probing calls
+    mockCall.mockResolvedValue(undefined);
+
+    const tool = findTool(tools, "isp_methods_list");
+    const result = await tool.run({}, ctx()) as JsonMap;
+
+    expect(result.discovery).toBe("probe");
+  });
+
+  test("probe classifies methods by error type", async () => {
+    // get_function_list fails
+    mockCall.mockRejectedValueOnce(new Error("invalid function"));
+    // First known method succeeds
+    mockCall.mockResolvedValueOnce([]);
+    // Second known method fails with invalid function (unavailable)
+    mockCall.mockRejectedValueOnce(new Error("invalid function name"));
+    // Rest succeed
+    mockCall.mockResolvedValue([]);
+
+    const tool = findTool(tools, "isp_methods_list");
+    const result = await tool.run({}, ctx()) as JsonMap;
+
+    expect(result.discovery).toBe("probe");
+    const available = result.available as string[];
+    const unavailable = result.unavailable as Array<{ method: string; reason: string }>;
+    expect(available.length + unavailable.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Provision flow
 // ---------------------------------------------------------------------------
 

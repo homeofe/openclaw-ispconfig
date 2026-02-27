@@ -39,20 +39,20 @@
     "T-007": {
       "status": "done",
       "title": "Publish plugin on clawhub",
-      "note": "SKILL.md + README prepared with clawhub install. Human step: clawhub login && clawhub publish . --slug openclaw-ispconfig",
       "priority": "medium",
       "depends_on": [
         "T-006"
       ],
       "created": "2026-02-28T00:00:00Z",
-      "completed": "2026-02-27T15:00:00.000Z"
+      "completed": "2026-02-27T14:50:52.422Z"
     },
     "T-003": {
-      "status": "ready",
+      "status": "done",
       "title": "Improve isp_methods_list with dynamic discovery if available",
       "priority": "low",
       "depends_on": [],
-      "created": "2026-02-28T00:00:00Z"
+      "created": "2026-02-28T00:00:00Z",
+      "completed": "2026-02-27T15:10:00.000Z"
     },
     "T-005": {
       "status": "done",
@@ -66,7 +66,7 @@
       "created": "2026-02-28T00:00:00Z"
     }
   },
-  "quick_context": "openclaw-ispconfig v0.1.2. T-007 done: ClawHub publish prepared - SKILL.md with slug/frontmatter, README with clawhub install instructions. Human step needed: clawhub login && clawhub publish . --slug openclaw-ispconfig. All hardening complete (T-001 validation, T-002 tests, T-004 errors). Only T-003 (dynamic discovery) remains as low-priority.",
+  "quick_context": "openclaw-ispconfig v0.1.2. All tasks complete. T-003 done: isp_methods_list now tries get_function_list for dynamic API discovery (ISPConfig 3.2+), falls back to per-method probing on older versions. Reports discovery method, extra server methods, and cross-references with KNOWN_METHODS. 5 new unit tests added (123 total).",
   "files": {
     "NEXT_ACTIONS.md": {
       "lines": 25,
@@ -82,10 +82,10 @@
   },
   "last_session": {
     "agent": "claude-code",
-    "session_id": "t007-clawhub-publish",
-    "phase": "release",
-    "timestamp": "2026-02-27T15:00:00.000Z",
-    "duration_minutes": 3,
+    "session_id": "t003-dynamic-discovery",
+    "phase": "hardening",
+    "timestamp": "2026-02-27T15:10:00.000Z",
+    "duration_minutes": 5,
     "commit": ""
   },
   "aahp_version": "3.0",
