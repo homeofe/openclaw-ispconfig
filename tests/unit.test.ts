@@ -1,0 +1,511 @@
+import { createTools } from "../src/tools";
+import { ISPConfigClient } from "../src/client";
+import { ToolContext, ToolDefinition, JsonMap } from "../src/types";
+
+// ---------------------------------------------------------------------------
+// Mock ISPConfigClient so no real HTTP calls are made
+// ---------------------------------------------------------------------------
+
+jest.mock("../src/client");
+
+const MockedClient = ISPConfigClient as jest.MockedClass<typeof ISPConfigClient>;
+
+let mockCall: jest.Mock;
+let mockLogout: jest.Mock;
+
+function resetMocks(): void {
+  MockedClient.mockClear();
+  mockCall = jest.fn();
+  mockLogout = jest.fn().mockResolvedValue(undefined);
+  MockedClient.mockImplementation(() => ({
+    call: mockCall,
+    logout: mockLogout,
+    login: jest.fn().mockResolvedValue("mock-session"),
+  } as unknown as ISPConfigClient));
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const BASE_CONFIG = {
+  apiUrl: "https://panel.example.com:8080/remote/json.php",
+  username: "admin",
+  password: "secret",
+  serverId: 1,
+  defaultServerIp: "1.2.3.4",
+};
+
+function ctx(overrides: Partial<typeof BASE_CONFIG> = {}): ToolContext {
+  return { config: { ...BASE_CONFIG, ...overrides } };
+}
+
+function findTool(tools: ToolDefinition[], name: string): ToolDefinition {
+  const t = tools.find((td) => td.name === name);
+  if (!t) throw new Error(`Tool ${name} not found`);
+  return t;
+}
+
+// ---------------------------------------------------------------------------
+// Test suites
+// ---------------------------------------------------------------------------
+
+describe("write tools (mock-based)", () => {
+  let tools: ToolDefinition[];
+
+  beforeEach(() => {
+    resetMocks();
+    tools = createTools();
+  });
+
+  // ---- isp_client_add ----
+  test("isp_client_add passes params to client_add", async () => {
+    mockCall.mockResolvedValueOnce(42);
+    const tool = findTool(tools, "isp_client_add");
+    const params = { company_name: "Acme", email: "ceo@acme.test" };
+
+    const result = await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("client_add", { reseller_id: 0, params });
+    expect(result).toBe(42);
+    expect(mockLogout).toHaveBeenCalled();
+  });
+
+  // ---- isp_site_add ----
+  test("isp_site_add forwards params to sites_web_domain_add", async () => {
+    mockCall.mockResolvedValueOnce(101);
+    const tool = findTool(tools, "isp_site_add");
+    const params = { client_id: 1, params: { domain: "acme.test", active: "y" } };
+
+    const result = await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("sites_web_domain_add", params);
+    expect(result).toBe(101);
+  });
+
+  // ---- isp_domain_add (alias) ----
+  test("isp_domain_add is alias for sites_web_domain_add", async () => {
+    mockCall.mockResolvedValueOnce(102);
+    const tool = findTool(tools, "isp_domain_add");
+    const params = { client_id: 2, params: { domain: "alias.test" } };
+
+    await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("sites_web_domain_add", params);
+  });
+
+  // ---- isp_dns_zone_add ----
+  test("isp_dns_zone_add forwards to dns_zone_add", async () => {
+    mockCall.mockResolvedValueOnce(200);
+    const tool = findTool(tools, "isp_dns_zone_add");
+    const params = { client_id: 1, params: { origin: "acme.test.", ns: "ns1.acme.test." } };
+
+    const result = await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("dns_zone_add", params);
+    expect(result).toBe(200);
+  });
+
+  // ---- isp_dns_record_add - all supported types ----
+  test.each([
+    ["A", "dns_a_add"],
+    ["AAAA", "dns_aaaa_add"],
+    ["MX", "dns_mx_add"],
+    ["TXT", "dns_txt_add"],
+    ["CNAME", "dns_cname_add"],
+  ])("isp_dns_record_add type=%s dispatches to %s", async (type, expectedMethod) => {
+    mockCall.mockResolvedValueOnce(300);
+    const tool = findTool(tools, "isp_dns_record_add");
+    const params = { type, zone: 10, name: "test.", data: "1.2.3.4" };
+
+    await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith(expectedMethod, params);
+  });
+
+  test("isp_dns_record_add rejects unsupported type", async () => {
+    const tool = findTool(tools, "isp_dns_record_add");
+
+    await expect(tool.run({ type: "SRV" }, ctx())).rejects.toThrow("Unsupported DNS record type: SRV");
+  });
+
+  // ---- isp_dns_record_delete - type dispatch ----
+  test.each([
+    ["A", "dns_a_delete"],
+    ["AAAA", "dns_aaaa_delete"],
+    ["MX", "dns_mx_delete"],
+    ["TXT", "dns_txt_delete"],
+    ["CNAME", "dns_cname_delete"],
+  ])("isp_dns_record_delete type=%s dispatches to %s", async (type, expectedMethod) => {
+    mockCall.mockResolvedValueOnce(true);
+    const tool = findTool(tools, "isp_dns_record_delete");
+    const params = { type, primary_id: 55 };
+
+    await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith(expectedMethod, params);
+  });
+
+  // ---- isp_mail_domain_add ----
+  test("isp_mail_domain_add forwards to mail_domain_add", async () => {
+    mockCall.mockResolvedValueOnce(400);
+    const tool = findTool(tools, "isp_mail_domain_add");
+    const params = { client_id: 1, params: { domain: "acme.test", active: "y" } };
+
+    const result = await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("mail_domain_add", params);
+    expect(result).toBe(400);
+  });
+
+  // ---- isp_mail_user_add ----
+  test("isp_mail_user_add forwards to mail_user_add", async () => {
+    mockCall.mockResolvedValueOnce(500);
+    const tool = findTool(tools, "isp_mail_user_add");
+    const params = { client_id: 1, params: { email: "info@acme.test" } };
+
+    const result = await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("mail_user_add", params);
+    expect(result).toBe(500);
+  });
+
+  // ---- isp_mail_user_delete ----
+  test("isp_mail_user_delete forwards to mail_user_delete", async () => {
+    mockCall.mockResolvedValueOnce(true);
+    const tool = findTool(tools, "isp_mail_user_delete");
+    const params = { primary_id: 500 };
+
+    await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("mail_user_delete", params);
+  });
+
+  // ---- isp_db_add ----
+  test("isp_db_add forwards to sites_database_add", async () => {
+    mockCall.mockResolvedValueOnce(600);
+    const tool = findTool(tools, "isp_db_add");
+    const params = { client_id: 1, params: { database_name: "testdb" } };
+
+    const result = await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("sites_database_add", params);
+    expect(result).toBe(600);
+  });
+
+  // ---- isp_db_user_add ----
+  test("isp_db_user_add forwards to sites_database_user_add", async () => {
+    mockCall.mockResolvedValueOnce(700);
+    const tool = findTool(tools, "isp_db_user_add");
+    const params = { client_id: 1, params: { database_user: "u_test" } };
+
+    const result = await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("sites_database_user_add", params);
+    expect(result).toBe(700);
+  });
+
+  // ---- isp_shell_user_add ----
+  test("isp_shell_user_add forwards to sites_shell_user_add", async () => {
+    mockCall.mockResolvedValueOnce(800);
+    const tool = findTool(tools, "isp_shell_user_add");
+    const params = { client_id: 1, params: { username: "shell1" } };
+
+    const result = await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("sites_shell_user_add", params);
+    expect(result).toBe(800);
+  });
+
+  // ---- isp_ftp_user_add ----
+  test("isp_ftp_user_add forwards to sites_ftp_user_add", async () => {
+    mockCall.mockResolvedValueOnce(900);
+    const tool = findTool(tools, "isp_ftp_user_add");
+    const params = { client_id: 1, params: { username: "ftp1" } };
+
+    const result = await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("sites_ftp_user_add", params);
+    expect(result).toBe(900);
+  });
+
+  // ---- isp_cron_add ----
+  test("isp_cron_add forwards to sites_cron_add", async () => {
+    mockCall.mockResolvedValueOnce(1000);
+    const tool = findTool(tools, "isp_cron_add");
+    const params = { client_id: 1, params: { command: "/usr/bin/php cron.php" } };
+
+    const result = await tool.run(params, ctx());
+
+    expect(mockCall).toHaveBeenCalledWith("sites_cron_add", params);
+    expect(result).toBe(1000);
+  });
+
+  // ---- logout always called ----
+  test("logout is called even when tool throws", async () => {
+    mockCall.mockRejectedValueOnce(new Error("API failure"));
+    const tool = findTool(tools, "isp_client_add");
+
+    await expect(tool.run({}, ctx())).rejects.toThrow("API failure");
+    expect(mockLogout).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Provision flow
+// ---------------------------------------------------------------------------
+
+describe("isp_provision_site (mock-based)", () => {
+  let tools: ToolDefinition[];
+
+  beforeEach(() => {
+    resetMocks();
+    tools = createTools();
+  });
+
+  test("full provision with mail and db", async () => {
+    // Sequence of client.call responses:
+    // 1. client_add -> newClientId
+    // 2. sites_web_domain_add -> websiteId
+    // 3. dns_zone_add -> zoneId
+    // 4. dns_a_add (A record)
+    // 5. dns_cname_add (CNAME www)
+    // 6. dns_txt_add (SPF)
+    // 7. dns_txt_add (DMARC)
+    // 8. mail_domain_add -> mailDomainId
+    // 9. mail_user_add (info@)
+    // 10. mail_user_add (admin@)
+    // 11. sites_database_user_add -> dbUserId
+    // 12. sites_database_add -> dbId
+    // 13. sites_web_domain_update (enable SSL)
+    mockCall
+      .mockResolvedValueOnce(10)   // client_add
+      .mockResolvedValueOnce(20)   // sites_web_domain_add
+      .mockResolvedValueOnce(30)   // dns_zone_add
+      .mockResolvedValueOnce(true) // dns_a_add
+      .mockResolvedValueOnce(true) // dns_cname_add
+      .mockResolvedValueOnce(true) // dns_txt_add (SPF)
+      .mockResolvedValueOnce(true) // dns_txt_add (DMARC)
+      .mockResolvedValueOnce(40)   // mail_domain_add
+      .mockResolvedValueOnce(true) // mail_user_add info@
+      .mockResolvedValueOnce(true) // mail_user_add admin@
+      .mockResolvedValueOnce(50)   // sites_database_user_add
+      .mockResolvedValueOnce(60)   // sites_database_add
+      .mockResolvedValueOnce(true); // sites_web_domain_update
+
+    const tool = findTool(tools, "isp_provision_site");
+    const result = await tool.run({
+      domain: "acme.test",
+      clientName: "Acme Corp",
+      clientEmail: "admin@acme.test",
+      createMail: true,
+      createDb: true,
+    }, ctx()) as JsonMap;
+
+    expect(result.ok).toBe(true);
+    expect(result.domain).toBe("acme.test");
+
+    const created = result.created as JsonMap;
+    expect(created.client_id).toBe(10);
+    expect(created.site_id).toBe(20);
+    expect(created.dns_zone_id).toBe(30);
+    expect(created.mail_domain_id).toBe(40);
+    expect(created.database_user_id).toBe(50);
+    expect(created.database_id).toBe(60);
+
+    // Verify API call sequence
+    expect(mockCall).toHaveBeenCalledTimes(13);
+
+    // 1. client_add
+    expect(mockCall.mock.calls[0][0]).toBe("client_add");
+    expect(mockCall.mock.calls[0][1]).toMatchObject({ reseller_id: 0, params: { company_name: "Acme Corp" } });
+
+    // 2. sites_web_domain_add
+    expect(mockCall.mock.calls[1][0]).toBe("sites_web_domain_add");
+    expect(mockCall.mock.calls[1][1]).toMatchObject({ client_id: 10, params: { domain: "acme.test", ssl: "y", ssl_letsencrypt: "y" } });
+
+    // 3. dns_zone_add
+    expect(mockCall.mock.calls[2][0]).toBe("dns_zone_add");
+    expect(mockCall.mock.calls[2][1]).toMatchObject({ client_id: 10, params: { origin: "acme.test." } });
+
+    // 4. A record
+    expect(mockCall.mock.calls[3][0]).toBe("dns_a_add");
+    expect(mockCall.mock.calls[3][1]).toMatchObject({ params: { data: "1.2.3.4" } });
+
+    // 5. CNAME www
+    expect(mockCall.mock.calls[4][0]).toBe("dns_cname_add");
+    expect(mockCall.mock.calls[4][1]).toMatchObject({ params: { name: "www.acme.test." } });
+
+    // 6. SPF
+    expect(mockCall.mock.calls[5][0]).toBe("dns_txt_add");
+    expect(mockCall.mock.calls[5][1]).toMatchObject({ params: { data: "v=spf1 mx a ~all" } });
+
+    // 7. DMARC
+    expect(mockCall.mock.calls[6][0]).toBe("dns_txt_add");
+    expect(mockCall.mock.calls[6][1]).toMatchObject({ params: { name: "_dmarc.acme.test." } });
+
+    // 8. mail_domain_add
+    expect(mockCall.mock.calls[7][0]).toBe("mail_domain_add");
+
+    // 9-10. mail_user_add
+    expect(mockCall.mock.calls[8][0]).toBe("mail_user_add");
+    expect(mockCall.mock.calls[8][1]).toMatchObject({ params: { login: "info@acme.test" } });
+    expect(mockCall.mock.calls[9][0]).toBe("mail_user_add");
+    expect(mockCall.mock.calls[9][1]).toMatchObject({ params: { login: "admin@acme.test" } });
+
+    // 11. sites_database_user_add
+    expect(mockCall.mock.calls[10][0]).toBe("sites_database_user_add");
+
+    // 12. sites_database_add
+    expect(mockCall.mock.calls[11][0]).toBe("sites_database_add");
+    expect(mockCall.mock.calls[11][1]).toMatchObject({ params: { database_user_id: 50 } });
+
+    // 13. sites_web_domain_update (SSL enable)
+    expect(mockCall.mock.calls[12][0]).toBe("sites_web_domain_update");
+    expect(mockCall.mock.calls[12][1]).toMatchObject({ primary_id: 20, params: { ssl: "y", ssl_letsencrypt: "y" } });
+  });
+
+  test("provision without mail or db skips those steps", async () => {
+    mockCall
+      .mockResolvedValueOnce(10)   // client_add
+      .mockResolvedValueOnce(20)   // sites_web_domain_add
+      .mockResolvedValueOnce(30)   // dns_zone_add
+      .mockResolvedValueOnce(true) // dns_a_add
+      .mockResolvedValueOnce(true) // dns_cname_add
+      .mockResolvedValueOnce(true) // dns_txt_add (SPF)
+      .mockResolvedValueOnce(true) // dns_txt_add (DMARC)
+      .mockResolvedValueOnce(true); // sites_web_domain_update
+
+    const tool = findTool(tools, "isp_provision_site");
+    const result = await tool.run({
+      domain: "nomail.test",
+      clientName: "NoMail Inc",
+      clientEmail: "boss@nomail.test",
+      createMail: false,
+      createDb: false,
+    }, ctx()) as JsonMap;
+
+    expect(result.ok).toBe(true);
+
+    const created = result.created as JsonMap;
+    expect(created.client_id).toBe(10);
+    expect(created.site_id).toBe(20);
+    expect(created.dns_zone_id).toBe(30);
+    // No mail or db entries
+    expect(created.mail_domain_id).toBeUndefined();
+    expect(created.database_id).toBeUndefined();
+    expect(created.database_user_id).toBeUndefined();
+
+    // 7 calls without mail/db + 1 final SSL update = 8
+    expect(mockCall).toHaveBeenCalledTimes(8);
+  });
+
+  test("provision without serverIp skips A and CNAME records", async () => {
+    mockCall
+      .mockResolvedValueOnce(10)   // client_add
+      .mockResolvedValueOnce(20)   // sites_web_domain_add
+      .mockResolvedValueOnce(30)   // dns_zone_add
+      .mockResolvedValueOnce(true) // dns_txt_add (SPF)
+      .mockResolvedValueOnce(true) // dns_txt_add (DMARC)
+      .mockResolvedValueOnce(true); // sites_web_domain_update
+
+    const tool = findTool(tools, "isp_provision_site");
+    const result = await tool.run({
+      domain: "noip.test",
+      clientName: "NoIP Ltd",
+      clientEmail: "it@noip.test",
+      createMail: false,
+      createDb: false,
+    }, ctx({ defaultServerIp: "" })) as JsonMap;
+
+    expect(result.ok).toBe(true);
+
+    // No dns_a_add or dns_cname_add
+    const methods = mockCall.mock.calls.map((c) => c[0]);
+    expect(methods).not.toContain("dns_a_add");
+    expect(methods).not.toContain("dns_cname_add");
+    expect(mockCall).toHaveBeenCalledTimes(6);
+  });
+
+  test("provision rejects missing required fields", async () => {
+    const tool = findTool(tools, "isp_provision_site");
+
+    await expect(tool.run({ domain: "x.test" }, ctx())).rejects.toThrow(
+      "domain, clientName and clientEmail are required",
+    );
+
+    await expect(tool.run({ clientName: "Foo", clientEmail: "a@b.c" }, ctx())).rejects.toThrow(
+      "domain, clientName and clientEmail are required",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Guard enforcement on write tools
+// ---------------------------------------------------------------------------
+
+describe("guard enforcement", () => {
+  let tools: ToolDefinition[];
+
+  beforeEach(() => {
+    resetMocks();
+    tools = createTools();
+  });
+
+  const WRITE_TOOL_NAMES = [
+    "isp_client_add",
+    "isp_site_add",
+    "isp_domain_add",
+    "isp_dns_zone_add",
+    "isp_dns_record_add",
+    "isp_dns_record_delete",
+    "isp_mail_domain_add",
+    "isp_mail_user_add",
+    "isp_mail_user_delete",
+    "isp_db_add",
+    "isp_db_user_add",
+    "isp_shell_user_add",
+    "isp_ftp_user_add",
+    "isp_cron_add",
+    "isp_provision_site",
+  ];
+
+  test.each(WRITE_TOOL_NAMES)("readOnly blocks %s", async (toolName) => {
+    const tool = findTool(tools, toolName);
+    const readOnlyCtx = ctx({ readOnly: true } as never);
+
+    await expect(tool.run({}, readOnlyCtx)).rejects.toThrow("readOnly=true");
+    // Client.call should never be invoked
+    expect(mockCall).not.toHaveBeenCalled();
+  });
+
+  test("allowedOperations whitelist blocks unlisted tools", async () => {
+    const tool = findTool(tools, "isp_client_add");
+    const restrictedCtx: ToolContext = {
+      config: { ...BASE_CONFIG, allowedOperations: ["isp_sites_list"] },
+    };
+
+    await expect(tool.run({}, restrictedCtx)).rejects.toThrow("blocked by allowedOperations");
+    expect(mockCall).not.toHaveBeenCalled();
+  });
+
+  test("allowedOperations whitelist permits listed tools", async () => {
+    mockCall.mockResolvedValueOnce(1);
+    const tool = findTool(tools, "isp_client_add");
+    const permittedCtx: ToolContext = {
+      config: { ...BASE_CONFIG, allowedOperations: ["isp_client_add"] },
+    };
+
+    await expect(tool.run({}, permittedCtx)).resolves.toBe(1);
+    expect(mockCall).toHaveBeenCalled();
+  });
+
+  test("read tools work in readOnly mode", async () => {
+    mockCall.mockResolvedValueOnce([{ domain_id: 1, domain: "x.test", active: "y" }]);
+    const tool = findTool(tools, "isp_sites_list");
+    const readOnlyCtx = ctx({ readOnly: true } as never);
+
+    await expect(tool.run({}, readOnlyCtx)).resolves.toBeDefined();
+    expect(mockCall).toHaveBeenCalled();
+  });
+});
