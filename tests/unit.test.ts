@@ -1,5 +1,6 @@
 import { createTools } from "../src/tools";
 import { ISPConfigClient } from "../src/client";
+import { ISPConfigError, normalizeError, classifyApiMessage } from "../src/errors";
 import { ToolContext, ToolDefinition, JsonMap } from "../src/types";
 import { validateParams, TOOL_SCHEMAS } from "../src/validate";
 
@@ -702,6 +703,305 @@ describe("TOOL_SCHEMAS completeness", () => {
 
     for (const schemaName of Object.keys(TOOL_SCHEMAS)) {
       expect(toolNames.has(schemaName)).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ISPConfigError class
+// ---------------------------------------------------------------------------
+
+describe("ISPConfigError", () => {
+  test("extends Error with correct name", () => {
+    const err = new ISPConfigError("api_error", "something broke");
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(ISPConfigError);
+    expect(err.name).toBe("ISPConfigError");
+    expect(err.message).toBe("something broke");
+  });
+
+  test("stores code, retryable, and statusCode", () => {
+    const err = new ISPConfigError("network_error", "timeout", {
+      retryable: true,
+      statusCode: 504,
+    });
+    expect(err.code).toBe("network_error");
+    expect(err.retryable).toBe(true);
+    expect(err.statusCode).toBe(504);
+  });
+
+  test("defaults retryable to false", () => {
+    const err = new ISPConfigError("validation_error", "bad input");
+    expect(err.retryable).toBe(false);
+  });
+
+  test("stores cause", () => {
+    const cause = new Error("original");
+    const err = new ISPConfigError("api_error", "wrapped", { cause });
+    expect(err.cause).toBe(cause);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyApiMessage
+// ---------------------------------------------------------------------------
+
+describe("classifyApiMessage", () => {
+  test.each([
+    ["ISPConfig API error: invalid function name", "invalid_method"],
+    ["ISPConfig API error: Unknown method foo_bar", "invalid_method"],
+    ["ISPConfig API error: method not found", "invalid_method"],
+    ["ISPConfig API error: function not found", "invalid_method"],
+    ["ISPConfig API error: not a valid method", "invalid_method"],
+  ])("classifies '%s' as %s", (msg, expected) => {
+    expect(classifyApiMessage(msg)).toBe(expected);
+  });
+
+  test.each([
+    ["ISPConfig API error: permission denied for this action", "permission_denied"],
+    ["ISPConfig API error: access denied", "permission_denied"],
+    ["ISPConfig API error: not allowed for client", "permission_denied"],
+    ["ISPConfig API error: forbidden", "permission_denied"],
+    ["ISPConfig API error: no permission", "permission_denied"],
+    ["ISPConfig API error: not permitted", "permission_denied"],
+    ["ISPConfig API error: authorization required", "permission_denied"],
+  ])("classifies '%s' as %s", (msg, expected) => {
+    expect(classifyApiMessage(msg)).toBe(expected);
+  });
+
+  test.each([
+    ["ISPConfig API error: session expired", "auth_error"],
+    ["ISPConfig API error: login failed", "auth_error"],
+    ["ISPConfig API error: authentication required", "auth_error"],
+    ["ISPConfig API error: invalid credentials", "auth_error"],
+    ["ISPConfig API error: no session id", "auth_error"],
+  ])("classifies '%s' as %s", (msg, expected) => {
+    expect(classifyApiMessage(msg)).toBe(expected);
+  });
+
+  test("falls back to api_error for unknown messages", () => {
+    expect(classifyApiMessage("ISPConfig API error: something unexpected")).toBe("api_error");
+    expect(classifyApiMessage("generic error")).toBe("api_error");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// normalizeError
+// ---------------------------------------------------------------------------
+
+describe("normalizeError", () => {
+  test("passes through ISPConfigError unchanged", () => {
+    const original = new ISPConfigError("validation_error", "bad input", { statusCode: 400 });
+    const result = normalizeError(original);
+    expect(result).toBe(original);
+  });
+
+  test("converts timeout errors to network_error", () => {
+    const err = normalizeError(new Error("ISPConfig request timeout after 20000ms"));
+    expect(err).toBeInstanceOf(ISPConfigError);
+    expect(err.code).toBe("network_error");
+    expect(err.retryable).toBe(true);
+  });
+
+  test("converts ECONNREFUSED to network_error", () => {
+    const err = normalizeError(new Error("connect ECONNREFUSED 127.0.0.1:8080"));
+    expect(err.code).toBe("network_error");
+    expect(err.retryable).toBe(true);
+  });
+
+  test("converts ECONNRESET to network_error", () => {
+    const err = normalizeError(new Error("read ECONNRESET"));
+    expect(err.code).toBe("network_error");
+    expect(err.retryable).toBe(true);
+  });
+
+  test("converts ENOTFOUND to network_error", () => {
+    const err = normalizeError(new Error("getaddrinfo ENOTFOUND panel.example.com"));
+    expect(err.code).toBe("network_error");
+    expect(err.retryable).toBe(true);
+  });
+
+  test("converts socket hang up to network_error", () => {
+    const err = normalizeError(new Error("socket hang up"));
+    expect(err.code).toBe("network_error");
+    expect(err.retryable).toBe(true);
+  });
+
+  test("converts HTTP 401 to auth_error", () => {
+    const err = normalizeError(new Error("ISPConfig HTTP 401: Unauthorized"));
+    expect(err.code).toBe("auth_error");
+    expect(err.statusCode).toBe(401);
+    expect(err.retryable).toBe(true);
+  });
+
+  test("converts HTTP 403 to permission_denied", () => {
+    const err = normalizeError(new Error("ISPConfig HTTP 403: Forbidden"));
+    expect(err.code).toBe("permission_denied");
+    expect(err.statusCode).toBe(403);
+    expect(err.retryable).toBe(false);
+  });
+
+  test("converts HTTP 500 to api_error with retryable", () => {
+    const err = normalizeError(new Error("ISPConfig HTTP 500: Internal Server Error"));
+    expect(err.code).toBe("api_error");
+    expect(err.statusCode).toBe(500);
+    expect(err.retryable).toBe(true);
+  });
+
+  test("converts HTTP 404 to api_error without retryable", () => {
+    const err = normalizeError(new Error("ISPConfig HTTP 404: Not Found"));
+    expect(err.code).toBe("api_error");
+    expect(err.statusCode).toBe(404);
+    expect(err.retryable).toBe(false);
+  });
+
+  test("converts non-JSON response to parse_error", () => {
+    const err = normalizeError(new Error("ISPConfig returned non-JSON response: <html>404</html>"));
+    expect(err.code).toBe("parse_error");
+    expect(err.retryable).toBe(false);
+  });
+
+  test("converts ISPConfig API envelope invalid_method", () => {
+    const err = normalizeError(new Error("ISPConfig API error: invalid function name"));
+    expect(err.code).toBe("invalid_method");
+  });
+
+  test("converts ISPConfig API envelope permission error", () => {
+    const err = normalizeError(new Error("ISPConfig API error: permission denied"));
+    expect(err.code).toBe("permission_denied");
+  });
+
+  test("converts ISPConfig API envelope session error", () => {
+    const err = normalizeError(new Error("ISPConfig API error: session expired"));
+    expect(err.code).toBe("auth_error");
+    expect(err.retryable).toBe(true);
+  });
+
+  test("converts login failure to auth_error", () => {
+    const err = normalizeError(new Error("ISPConfig login failed: no session_id returned"));
+    expect(err.code).toBe("auth_error");
+  });
+
+  test("converts validation errors to validation_error", () => {
+    const err = normalizeError(new Error("Validation failed for isp_client_get: One of [client_id, clientId] is required"));
+    expect(err.code).toBe("validation_error");
+    expect(err.statusCode).toBe(400);
+    expect(err.retryable).toBe(false);
+  });
+
+  test("converts readOnly policy error to permission_denied", () => {
+    const err = normalizeError(new Error("Tool isp_client_add is blocked because readOnly=true"));
+    expect(err.code).toBe("permission_denied");
+    expect(err.statusCode).toBe(403);
+  });
+
+  test("converts allowedOperations policy error to permission_denied", () => {
+    const err = normalizeError(new Error("Tool isp_client_add is blocked by allowedOperations policy"));
+    expect(err.code).toBe("permission_denied");
+    expect(err.statusCode).toBe(403);
+  });
+
+  test("converts string values to api_error", () => {
+    const err = normalizeError("some string error");
+    expect(err).toBeInstanceOf(ISPConfigError);
+    expect(err.code).toBe("api_error");
+    expect(err.message).toBe("some string error");
+  });
+
+  test("unknown errors fall back to api_error", () => {
+    const err = normalizeError(new Error("something completely unexpected"));
+    expect(err.code).toBe("api_error");
+    expect(err.retryable).toBe(false);
+  });
+
+  test("preserves cause from original error", () => {
+    const original = new Error("original error");
+    const err = normalizeError(original);
+    expect(err.cause).toBe(original);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Error normalization integrated into tool execution
+// ---------------------------------------------------------------------------
+
+describe("error normalization in tool execution", () => {
+  let tools: ToolDefinition[];
+
+  beforeEach(() => {
+    resetMocks();
+    tools = createTools();
+  });
+
+  test("validation errors are thrown as ISPConfigError with code=validation_error", async () => {
+    const tool = findTool(tools, "isp_client_get");
+
+    try {
+      await tool.run({}, ctx());
+      fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ISPConfigError);
+      const ispErr = err as ISPConfigError;
+      expect(ispErr.code).toBe("validation_error");
+      expect(ispErr.statusCode).toBe(400);
+      expect(ispErr.retryable).toBe(false);
+    }
+  });
+
+  test("guard errors are thrown as ISPConfigError with code=permission_denied", async () => {
+    const tool = findTool(tools, "isp_client_add");
+    const readOnlyCtx = ctx({ readOnly: true } as never);
+
+    try {
+      await tool.run({}, readOnlyCtx);
+      fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ISPConfigError);
+      const ispErr = err as ISPConfigError;
+      expect(ispErr.code).toBe("permission_denied");
+      expect(ispErr.statusCode).toBe(403);
+    }
+  });
+
+  test("API errors from client.call are normalized", async () => {
+    mockCall.mockRejectedValueOnce(new Error("ISPConfig API error: invalid function name"));
+    const tool = findTool(tools, "isp_client_add");
+
+    try {
+      await tool.run({}, ctx());
+      fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ISPConfigError);
+      const ispErr = err as ISPConfigError;
+      expect(ispErr.code).toBe("invalid_method");
+    }
+  });
+
+  test("network errors from client.call are normalized", async () => {
+    mockCall.mockRejectedValueOnce(new Error("connect ECONNREFUSED 127.0.0.1:8080"));
+    const tool = findTool(tools, "isp_client_add");
+
+    try {
+      await tool.run({}, ctx());
+      fail("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ISPConfigError);
+      const ispErr = err as ISPConfigError;
+      expect(ispErr.code).toBe("network_error");
+      expect(ispErr.retryable).toBe(true);
+    }
+  });
+
+  test("ISPConfigError from client passes through normalizeError unchanged", async () => {
+    const original = new ISPConfigError("auth_error", "session expired", { retryable: true });
+    mockCall.mockRejectedValueOnce(original);
+    const tool = findTool(tools, "isp_client_add");
+
+    try {
+      await tool.run({}, ctx());
+      fail("should have thrown");
+    } catch (err) {
+      expect(err).toBe(original);
     }
   });
 });

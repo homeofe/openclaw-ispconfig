@@ -1,3 +1,4 @@
+import { ISPConfigError } from "./errors";
 import { JsonMap } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,9 @@ export function validateParams(toolName: string, params: JsonMap): void {
   }
 
   if (errors.length > 0) {
-    throw new Error(`Validation failed for ${toolName}: ${errors.join("; ")}`);
+    throw new ISPConfigError("validation_error",
+      `Validation failed for ${toolName}: ${errors.join("; ")}`,
+      { statusCode: 400 },
+    );
   }
 }

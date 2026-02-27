@@ -1,4 +1,5 @@
 import { ISPConfigClient } from "./client";
+import { normalizeError } from "./errors";
 import { assertToolAllowed } from "./guards";
 import { JsonMap, ToolContext, ToolDefinition } from "./types";
 import { validateParams } from "./validate";
@@ -387,8 +388,12 @@ export function createTools(): ToolDefinition[] {
   return raw.map((tool) => ({
     ...tool,
     run: async (params: JsonMap, context: ToolContext) => {
-      validateParams(tool.name, params);
-      return tool.run(params, context);
+      try {
+        validateParams(tool.name, params);
+        return await tool.run(params, context);
+      } catch (err) {
+        throw normalizeError(err);
+      }
     },
   }));
 }
