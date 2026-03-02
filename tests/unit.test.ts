@@ -3,26 +3,27 @@ import { ISPConfigClient } from "../src/client";
 import { ISPConfigError, normalizeError, classifyApiMessage } from "../src/errors";
 import { ToolContext, ToolDefinition, JsonMap } from "../src/types";
 import { validateParams, TOOL_SCHEMAS } from "../src/validate";
+import { vi, type Mock, type MockedClass } from 'vitest'
 
 // ---------------------------------------------------------------------------
 // Mock ISPConfigClient so no real HTTP calls are made
 // ---------------------------------------------------------------------------
 
-jest.mock("../src/client");
+vi.mock("../src/client");
 
-const MockedClient = ISPConfigClient as jest.MockedClass<typeof ISPConfigClient>;
+const MockedClient = ISPConfigClient as MockedClass<typeof ISPConfigClient>;
 
-let mockCall: jest.Mock;
-let mockLogout: jest.Mock;
+let mockCall: Mock;
+let mockLogout: Mock;
 
 function resetMocks(): void {
   MockedClient.mockClear();
-  mockCall = jest.fn();
-  mockLogout = jest.fn().mockResolvedValue(undefined);
+  mockCall = vi.fn();
+  mockLogout = vi.fn().mockResolvedValue(undefined);
   MockedClient.mockImplementation(() => ({
     call: mockCall,
     logout: mockLogout,
-    login: jest.fn().mockResolvedValue("mock-session"),
+    login: vi.fn().mockResolvedValue("mock-session"),
   } as unknown as ISPConfigClient));
 }
 
