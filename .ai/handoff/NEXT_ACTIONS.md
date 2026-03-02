@@ -19,3 +19,8 @@
 - [ ] Create release tag
 - [ ] Publish npm package
 - [x] Publish plugin on clawhub
+
+## ⚠️ Version Sync Rule
+**ALWAYS keep `package.json` and `openclaw.plugin.json` versions in sync.**
+When bumping a version, update BOTH files. Mismatched versions cause plugin loading failures and npm/ClawHub publish inconsistencies.
+
