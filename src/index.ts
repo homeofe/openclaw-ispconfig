@@ -67,11 +67,15 @@ function registerViaApi(api: any): void {
       name: tool.name,
       description: tool.description,
       parameters: tool.parameters,
-      execute: (params: JsonMap) => tool.run(params),
+      execute: (...args: unknown[]) => {
+        // OpenClaw may pass (toolCallId, params) or just (params)
+        const params = (typeof args[0] === "string" && args.length > 1 ? args[1] : args[0]) as JsonMap ?? {};
+        return tool.run(params);
+      },
     });
   }
 
-  // Command: /ispconfig — show plugin help
+  // Command: /ispconfig - show plugin help
   api.registerCommand({
     name: "ispconfig",
     description: "Show ISPConfig plugin help and list of available tools.",
@@ -80,7 +84,7 @@ function registerViaApi(api: any): void {
     acceptsArgs: false,
     handler: async () => {
       const rawUrl: string = (config.apiUrl ?? "").trim();
-      // Extract hostname only — never expose credentials
+      // Extract hostname only - never expose credentials
       let displayHost = "(not configured)";
       try {
         if (rawUrl) {
@@ -90,44 +94,54 @@ function registerViaApi(api: any): void {
         displayHost = rawUrl.replace(/^https?:\/\//, "").split("/")[0] ?? rawUrl;
       }
 
-      const version: string = (pluginManifest as { version?: string }).version ?? "0.2.0";
+      const version: string = (pluginManifest as { version?: string }).version ?? "0.3.0";
 
       const text = [
         `🖥️ *ISPConfig Plugin*`,
         `Version ${version} | Connected to ${displayHost}`,
         ``,
-        `📋 *Read Commands*`,
-        `• isp_system_info — Server-Info`,
-        `• isp_client_list — Alle Clients`,
-        `• isp_client_get — Client Details (client_id)`,
-        `• isp_sites_list — Alle Websites`,
-        `• isp_site_get — Site Details (site_id)`,
-        `• isp_domains_list — Alle Domains`,
-        `• isp_dns_zone_list — DNS Zonen`,
-        `• isp_dns_record_list — DNS Records (zone_id)`,
-        `• isp_mail_domain_list — Mail-Domains`,
-        `• isp_mail_user_list — Mail-User`,
-        `• isp_db_list — Datenbanken`,
-        `• isp_cron_list — Cron Jobs`,
-        `• isp_ssl_status — SSL/LE Status`,
-        `• isp_quota_check — Quota (client_id)`,
-        `• isp_methods_list — Verfügbare API-Methoden`,
+        `📋 *Read (17)*`,
+        `• isp_system_info - Server-Info`,
+        `• isp_client_list - Alle Clients`,
+        `• isp_client_get - Client Details (client_id)`,
+        `• isp_sites_list - Alle Websites`,
+        `• isp_site_get - Site Details (site_id)`,
+        `• isp_domains_list - Alle Domains`,
+        `• isp_dns_zone_list - DNS Zonen`,
+        `• isp_dns_record_list - DNS Records (zone_id)`,
+        `• isp_mail_domain_list - Mail-Domains`,
+        `• isp_mail_user_list - Mail-User`,
+        `• isp_mail_alias_list - Mail-Aliase`,
+        `• isp_mail_forward_list - Mail-Forwards`,
+        `• isp_db_list - Datenbanken`,
+        `• isp_cron_list - Cron Jobs`,
+        `• isp_ssl_status - SSL/LE Status`,
+        `• isp_quota_check - Quota (client_id)`,
+        `• isp_methods_list - API-Methoden`,
         ``,
-        `✏️ *Write Commands*`,
-        `• isp_client_add — Client anlegen`,
-        `• isp_site_add — Website anlegen`,
-        `• isp_dns_zone_add — DNS Zone`,
-        `• isp_dns_record_add — DNS Record (type: A/AAAA/MX/TXT/CNAME)`,
-        `• isp_dns_record_delete — DNS Record löschen`,
-        `• isp_mail_domain_add — Mail-Domain`,
-        `• isp_mail_user_add / _delete — Mail-User`,
-        `• isp_db_add / isp_db_user_add — Datenbank`,
-        `• isp_ftp_user_add — FTP User`,
-        `• isp_shell_user_add — Shell User`,
-        `• isp_cron_add — Cron Job`,
+        `✏️ *Write (20+)*`,
+        `• isp_client_add / _update / _delete - Clients`,
+        `• isp_site_add / _update / _delete - Websites`,
+        `• isp_dns_zone_add / _delete - DNS Zonen`,
+        `• isp_dns_record_add / _update / _delete - DNS Records`,
+        `• isp_mail_domain_add / _delete - Mail-Domains`,
+        `• isp_mail_user_add / _delete - Mail-User`,
+        `• isp_mail_alias_add / _delete - Mail-Aliase`,
+        `• isp_mail_forward_add / _delete - Mail-Forwards`,
+        `• isp_db_add / _delete - Datenbanken`,
+        `• isp_db_user_add / _delete - DB User`,
+        `• isp_ftp_user_add / _delete - FTP User`,
+        `• isp_shell_user_add / _delete - Shell User`,
+        `• isp_cron_add / _update / _delete - Cron Jobs`,
         ``,
         `🚀 *Provisioning*`,
-        `• isp_provision_site — Alles auf einmal (domain, clientName, clientEmail)`,
+        `• isp_provision_site - Domain + DNS + Mail + DB in einem Schritt`,
+        ``,
+        `📝 *Beispiele*`,
+        `"Zeig mir alle Websites" -> isp_sites_list`,
+        `"DNS Records für Zone 1" -> isp_dns_record_list zone_id=1`,
+        `"Neue Domain anlegen" -> isp_provision_site domain=example.com clientName=Test clientEmail=test@example.com`,
+        `"Security Headers updaten" -> isp_site_update client_id=1 primary_id=3 params={apache_directives: "..."}`,
       ].join("\n");
 
       return { text };

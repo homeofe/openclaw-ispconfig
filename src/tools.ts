@@ -5,13 +5,21 @@ import { JsonMap, ToolContext, ToolDefinition } from "./types";
 import { validateParams } from "./validate";
 
 const KNOWN_METHODS = [
-  "server_get_all", "server_get", "client_get_all", "client_get", "client_add", "sites_web_domain_get",
-  "sites_web_domain_add", "dns_zone_get_by_user", "dns_zone_add", "dns_rr_get_all_by_zone", "dns_a_add",
-  "dns_aaaa_add", "dns_mx_add", "dns_txt_add", "dns_cname_add", "dns_a_delete", "dns_aaaa_delete",
-  "dns_mx_delete", "dns_txt_delete", "dns_cname_delete", "mail_domain_get", "mail_domain_add", "mail_user_get",
-  "mail_user_add", "mail_user_delete", "sites_database_get_all_by_user", "sites_database_add",
-  "sites_database_user_add", "sites_shell_user_add", "sites_ftp_user_add", "sites_cron_get", "sites_cron_add",
-  "sites_web_domain_update",
+  "server_get_all", "server_get", "client_get_all", "client_get", "client_add", "client_update", "client_delete",
+  "sites_web_domain_get", "sites_web_domain_add", "sites_web_domain_update", "sites_web_domain_delete",
+  "dns_zone_get_by_user", "dns_zone_add", "dns_zone_delete", "dns_rr_get_all_by_zone",
+  "dns_a_add", "dns_aaaa_add", "dns_mx_add", "dns_txt_add", "dns_cname_add",
+  "dns_a_delete", "dns_aaaa_delete", "dns_mx_delete", "dns_txt_delete", "dns_cname_delete",
+  "dns_a_update", "dns_aaaa_update", "dns_mx_update", "dns_txt_update", "dns_cname_update",
+  "mail_domain_get", "mail_domain_add", "mail_domain_delete",
+  "mail_user_get", "mail_user_add", "mail_user_delete",
+  "mail_alias_get", "mail_alias_add", "mail_alias_delete",
+  "mail_forward_get", "mail_forward_add", "mail_forward_delete",
+  "sites_database_get_all_by_user", "sites_database_add", "sites_database_delete",
+  "sites_database_user_add", "sites_database_user_delete",
+  "sites_shell_user_add", "sites_shell_user_delete",
+  "sites_ftp_user_add", "sites_ftp_user_delete",
+  "sites_cron_get", "sites_cron_add", "sites_cron_delete", "sites_cron_update",
 ];
 
 function toNumber(value: unknown, fallback?: number): number {
@@ -25,14 +33,13 @@ function toNumber(value: unknown, fallback?: number): number {
   return fallback;
 }
 
-function dnsMethodForType(type: string, action: "add" | "delete"): string {
-  const suffix = action === "add" ? "add" : "delete";
+function dnsMethodForType(type: string, action: "add" | "delete" | "update"): string {
   switch (type.toUpperCase()) {
-    case "A": return `dns_a_${suffix}`;
-    case "AAAA": return `dns_aaaa_${suffix}`;
-    case "MX": return `dns_mx_${suffix}`;
-    case "TXT": return `dns_txt_${suffix}`;
-    case "CNAME": return `dns_cname_${suffix}`;
+    case "A": return `dns_a_${action}`;
+    case "AAAA": return `dns_aaaa_${action}`;
+    case "MX": return `dns_mx_${action}`;
+    case "TXT": return `dns_txt_${action}`;
+    case "CNAME": return `dns_cname_${action}`;
     default: throw new Error(`Unsupported DNS record type: ${type}`);
   }
 }
@@ -571,6 +578,281 @@ export function createTools(): ToolDefinition[] {
         required: ["client_id", "params"],
       },
       run: async (params, context) => withClient(context, "isp_cron_add", (client) => client.call("sites_cron_add", params)),
+    },
+
+    // -------------------------------------------------------------------------
+    // New in v0.3.0 - Client management
+    // -------------------------------------------------------------------------
+    {
+      name: "isp_client_update",
+      description: "Update an existing ISPConfig client",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          client_id: { type: "number", description: "Client ID" },
+          params: { type: "object", description: "Fields to update" },
+        },
+        required: ["client_id", "params"],
+      },
+      run: async (params, context) => withClient(context, "isp_client_update", (client) =>
+        client.call("client_update", params)),
+    },
+    {
+      name: "isp_client_delete",
+      description: "Delete an ISPConfig client",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          client_id: { type: "number", description: "Client ID to delete" },
+        },
+        required: ["client_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_client_delete", (client) =>
+        client.call("client_delete", params)),
+    },
+
+    // -------------------------------------------------------------------------
+    // New in v0.3.0 - Website/Domain management
+    // -------------------------------------------------------------------------
+    {
+      name: "isp_site_update",
+      description: "Update web site configuration",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          client_id: { type: "number", description: "Client ID" },
+          primary_id: { type: "number", description: "Site ID to update" },
+          params: { type: "object", description: "Fields to update" },
+        },
+        required: ["client_id", "primary_id", "params"],
+      },
+      run: async (params, context) => withClient(context, "isp_site_update", (client) =>
+        client.call("sites_web_domain_update", params)),
+    },
+    {
+      name: "isp_site_delete",
+      description: "Delete a web site",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          primary_id: { type: "number", description: "Site ID to delete" },
+        },
+        required: ["primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_site_delete", (client) =>
+        client.call("sites_web_domain_delete", params)),
+    },
+
+    // -------------------------------------------------------------------------
+    // New in v0.3.0 - Mail
+    // -------------------------------------------------------------------------
+    {
+      name: "isp_mail_domain_delete",
+      description: "Delete a mail domain",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          primary_id: { type: "number", description: "Mail domain ID to delete" },
+        },
+        required: ["primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_mail_domain_delete", (client) =>
+        client.call("mail_domain_delete", params)),
+    },
+    {
+      name: "isp_mail_alias_list",
+      description: "List mail aliases",
+      parameters: { type: "object" as const, properties: {} },
+      run: async (params, context) => withClient(context, "isp_mail_alias_list", (client) =>
+        client.call("mail_alias_get", params)),
+    },
+    {
+      name: "isp_mail_alias_add",
+      description: "Create a mail alias",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          client_id: { type: "number", description: "Client ID" },
+          params: { type: "object", description: "Mail alias parameters" },
+        },
+        required: ["client_id", "params"],
+      },
+      run: async (params, context) => withClient(context, "isp_mail_alias_add", (client) =>
+        client.call("mail_alias_add", params)),
+    },
+    {
+      name: "isp_mail_alias_delete",
+      description: "Delete a mail alias",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          primary_id: { type: "number", description: "Mail alias ID to delete" },
+        },
+        required: ["primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_mail_alias_delete", (client) =>
+        client.call("mail_alias_delete", params)),
+    },
+    {
+      name: "isp_mail_forward_list",
+      description: "List mail forwards",
+      parameters: { type: "object" as const, properties: {} },
+      run: async (params, context) => withClient(context, "isp_mail_forward_list", (client) =>
+        client.call("mail_forward_get", params)),
+    },
+    {
+      name: "isp_mail_forward_add",
+      description: "Create a mail forward",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          client_id: { type: "number", description: "Client ID" },
+          params: { type: "object", description: "Mail forward parameters" },
+        },
+        required: ["client_id", "params"],
+      },
+      run: async (params, context) => withClient(context, "isp_mail_forward_add", (client) =>
+        client.call("mail_forward_add", params)),
+    },
+    {
+      name: "isp_mail_forward_delete",
+      description: "Delete a mail forward",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          primary_id: { type: "number", description: "Mail forward ID to delete" },
+        },
+        required: ["primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_mail_forward_delete", (client) =>
+        client.call("mail_forward_delete", params)),
+    },
+
+    // -------------------------------------------------------------------------
+    // New in v0.3.0 - DNS
+    // -------------------------------------------------------------------------
+    {
+      name: "isp_dns_zone_delete",
+      description: "Delete a DNS zone",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          primary_id: { type: "number", description: "DNS zone ID to delete" },
+        },
+        required: ["primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_dns_zone_delete", (client) =>
+        client.call("dns_zone_delete", params)),
+    },
+    {
+      name: "isp_dns_record_update",
+      description: "Update a DNS record using type-specific method",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          type: { type: "string", enum: ["A", "AAAA", "MX", "TXT", "CNAME"], description: "DNS record type" },
+          client_id: { type: "number", description: "Client ID" },
+          primary_id: { type: "number", description: "DNS record ID to update" },
+          params: { type: "object", description: "Fields to update" },
+        },
+        required: ["type", "primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_dns_record_update", (client) => {
+        const method = dnsMethodForType(String(params.type ?? ""), "update");
+        return client.call(method, params);
+      }),
+    },
+
+    // -------------------------------------------------------------------------
+    // New in v0.3.0 - Databases
+    // -------------------------------------------------------------------------
+    {
+      name: "isp_db_delete",
+      description: "Delete a database",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          primary_id: { type: "number", description: "Database ID to delete" },
+        },
+        required: ["primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_db_delete", (client) =>
+        client.call("sites_database_delete", params)),
+    },
+    {
+      name: "isp_db_user_delete",
+      description: "Delete a database user",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          primary_id: { type: "number", description: "Database user ID to delete" },
+        },
+        required: ["primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_db_user_delete", (client) =>
+        client.call("sites_database_user_delete", params)),
+    },
+
+    // -------------------------------------------------------------------------
+    // New in v0.3.0 - FTP / Shell
+    // -------------------------------------------------------------------------
+    {
+      name: "isp_ftp_user_delete",
+      description: "Delete an FTP user",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          primary_id: { type: "number", description: "FTP user ID to delete" },
+        },
+        required: ["primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_ftp_user_delete", (client) =>
+        client.call("sites_ftp_user_delete", params)),
+    },
+    {
+      name: "isp_shell_user_delete",
+      description: "Delete a shell user",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          primary_id: { type: "number", description: "Shell user ID to delete" },
+        },
+        required: ["primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_shell_user_delete", (client) =>
+        client.call("sites_shell_user_delete", params)),
+    },
+
+    // -------------------------------------------------------------------------
+    // New in v0.3.0 - Cron
+    // -------------------------------------------------------------------------
+    {
+      name: "isp_cron_delete",
+      description: "Delete a cron job",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          primary_id: { type: "number", description: "Cron job ID to delete" },
+        },
+        required: ["primary_id"],
+      },
+      run: async (params, context) => withClient(context, "isp_cron_delete", (client) =>
+        client.call("sites_cron_delete", params)),
+    },
+    {
+      name: "isp_cron_update",
+      description: "Update an existing cron job",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          client_id: { type: "number", description: "Client ID" },
+          primary_id: { type: "number", description: "Cron job ID to update" },
+          params: { type: "object", description: "Fields to update" },
+        },
+        required: ["client_id", "primary_id", "params"],
+      },
+      run: async (params, context) => withClient(context, "isp_cron_update", (client) =>
+        client.call("sites_cron_update", params)),
     },
   ];
 
